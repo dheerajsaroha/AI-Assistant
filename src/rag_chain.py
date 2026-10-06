@@ -20,6 +20,12 @@ def generate_with_fallback(prompt: str) -> tuple[str, str]:
             or "503" in error_message
             or "UNAVAILABLE" in error_message
             or "SERVICE UNAVAILABLE" in error_message
+            # Missing or invalid credentials should not hard-fail
+            # generation. They are an availability problem, not a
+            # content problem, so the local model answers instead.
+            or "API KEY" in error_message
+            or "NOT CONFIGURED" in error_message
+            or "API_KEY" in error_message
         )
 
         if not fallback_conditions:

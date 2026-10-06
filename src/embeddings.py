@@ -1,6 +1,7 @@
 from sentence_transformers import SentenceTransformer
 
 from src.gemini_client import embed_text, embed_texts
+from src.config import LLM_PROVIDER
 
 
 GEMINI_DIMENSION = 768
@@ -25,10 +26,18 @@ class EmbeddingModel:
     """
 
     def __init__(self, force_local: bool = False):
-        self.provider = "local" if force_local else "gemini"
+        # Respect LLM_PROVIDER when set explicitly. This is the only
+        # place the configuration actually takes effect for embeddings;
+        # without it, "LLM_PROVIDER=local" would silently do nothing and
+        # the model would still try Gemini first.
+        if force_local or LLM_PROVIDER == "local":
+            self.provider = "local"
+        else:
+            self.provider = "gemini"
+
         self.local_model = None
 
-        if force_local:
+        if self.provider == "local":
             self._load_local_model()
 
     def _load_local_model(self):
@@ -149,8 +158,26 @@ class EmbeddingModel:
 
         except Exception as error:
 
+            # Build-time fallback is broad on purpose.
+            #
+            # At this point no index exists yet, so falling back to
+            # the local model is always safe: there is no pre-built
+            # Gemini index that could become inconsistent with
+            # MiniLM vectors.
+            #
+            # This is what makes the pipeline robust against a
+            # missing or invalid API key, a network failure, or any
+            # other non-quota Gemini error during indexing.
+            #
+            # The narrow quota-only check is deliberately kept for
+            # embed_query(), where an existing Gemini index cannot
+            # be queried with a different provider's vectors.
             if not self._is_gemini_quota_error(error):
-                raise
+                print(
+                    "Gemini document embedding failed "
+                    f"({str(error)[:160]}). "
+                    "Falling back to all-MiniLM-L6-v2."
+                )
 
             # Do NOT use partially generated Gemini embeddings.
             # Rebuild the entire batch using MiniLM.

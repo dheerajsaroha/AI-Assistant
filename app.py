@@ -311,10 +311,13 @@ if uploaded_files:
 
                     st.rerun()
 
-                except Exception:
+                except Exception as error:
                     st.error(
                         "The documents could not be processed. "
                         "Please check the uploaded files and try again."
+                    )
+                    st.code(
+                        str(error)
                     )
 
 

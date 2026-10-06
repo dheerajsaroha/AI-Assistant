@@ -54,6 +54,45 @@ def test_document_embedding_fallback():
     print("Document embedding fallback test: PASS")
 
 
+def test_build_time_fallback_on_non_quota_error():
+    """
+    Verify fallback on a non-quota Gemini error during indexing.
+
+    At build time there is no pre-existing index, so any Gemini
+    failure — including a missing or invalid API key — is safe to
+    fall back from. This is the case that previously aborted the
+    knowledge-base build with a swallowed exception.
+    """
+
+    model = EmbeddingModel()
+
+    print()
+    print("=" * 80)
+    print("BUILD-TIME NON-QUOTA FALLBACK TEST")
+    print("=" * 80)
+
+    with patch(
+        "src.embeddings.embed_texts",
+        side_effect=RuntimeError(
+            "Gemini document embedding failed: "
+            "401 API key not configured"
+        ),
+    ):
+
+        embeddings = model.embed_documents(TEST_TEXTS)
+
+    print(f"Provider after non-quota failure: {model.provider}")
+    print(f"Number of embeddings: {len(embeddings)}")
+    print(f"Embedding dimension: {len(embeddings[0])}")
+
+    assert model.provider == "local"
+    assert model.local_model is not None
+    assert len(embeddings) == len(TEST_TEXTS)
+    assert len(embeddings[0]) == 384
+
+    print("Build-time non-quota fallback test: PASS")
+
+
 def test_query_embedding_uses_local_after_fallback():
     """
     Verify that once the provider switches to local,
@@ -84,6 +123,7 @@ def test_query_embedding_uses_local_after_fallback():
 
 if __name__ == "__main__":
     test_document_embedding_fallback()
+    test_build_time_fallback_on_non_quota_error()
     test_query_embedding_uses_local_after_fallback()
 
     print()

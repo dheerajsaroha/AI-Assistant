@@ -58,6 +58,37 @@ def test_503_generation_fallback():
     assert answer.strip()
 
     print("503 generation fallback: PASS")
+
+
+def test_missing_key_generation_fallback():
+    """
+    Verify fallback when Gemini has no API key configured.
+
+    This is the case that fails on a host without GEMINI_API_KEY
+    set. It must not hard-fail generation; the local model answers
+    instead.
+    """
+
+    with patch(
+        "src.rag_chain.generate_response",
+        side_effect=RuntimeError(
+            "Gemini API key is not configured. "
+            "Set GEMINI_API_KEY to use Gemini generation "
+            "or embedding."
+        ),
+    ):
+        answer, provider = generate_with_fallback(
+            "Answer in one sentence: What is machine learning?"
+        )
+
+    print("\nMISSING-KEY FALLBACK")
+    print(f"Provider: {provider}")
+    print(f"Answer: {answer}")
+
+    assert provider == "SmolLM2-360M-Instruct (Fallback)"
+    assert answer.strip()
+
+    print("Missing-key generation fallback: PASS")
     
 if __name__ == "__main__":
 
@@ -67,6 +98,7 @@ if __name__ == "__main__":
 
     test_429_generation_fallback()
     test_503_generation_fallback()
+    test_missing_key_generation_fallback()
 
     print()
     print("=" * 80)
